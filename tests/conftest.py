@@ -63,6 +63,8 @@ class NumpySnapshot:
         # Load the snapshot
         expected_arrays = dict(np.load(snapshot_path))
 
+        print("my output:", arrays_dict["loss"])
+        print("ground_truth:", expected_arrays["loss"])
         # Verify all expected arrays are present
         missing_keys = set(arrays_dict.keys()) - set(expected_arrays.keys())
         if missing_keys:
@@ -210,17 +212,17 @@ def output_strs():
 
 @pytest.fixture
 def model_id():
-    return "/data/a5-alignment/models/Qwen2.5-Math-1.5B"
+    return Path("/root/shared_nvme/Qwen2.5")
 
 
 @pytest.fixture
 def tokenizer(model_id):
-    return AutoTokenizer.from_pretrained(model_id)
+    return AutoTokenizer.from_pretrained("/root/shared-nvme/Qwen2.5")
 
 
 @pytest.fixture
 def model(model_id):
-    return AutoModelForCausalLM.from_pretrained(model_id)
+    return AutoModelForCausalLM.from_pretrained("/root/shared-nvme/Qwen2.5")
 
 
 @pytest.fixture
