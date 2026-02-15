@@ -31,7 +31,9 @@ Assistant: <think>""" for question in ori_df["question"]]
     df["reward"] = reward
     df["ground_truth"] = ori_df["answer"]
     df.to_parquet(output_path)
+    
     print(f"Results serialized to {output_path}!")
+    return df
 
 if __name__=="__main__":
     model = LLM(model="/root/shared-nvme/Qwen2.5")

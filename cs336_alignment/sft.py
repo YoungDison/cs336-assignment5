@@ -50,7 +50,7 @@ def get_response_log_probs(model, input_ids: torch.Tensor, labels: torch.Tensor,
 def masked_normalize(
         tensor: torch.Tensor,
         mask: torch.Tensor,
-        normalize_constant: float,
+        normalize_constant: float=1.0,
         dim: int | None = None,
 ) -> torch.Tensor:
     needed_sum_tensor = torch.where(mask==1, tensor, 0)
@@ -115,17 +115,61 @@ def log_generations(vllm_model, sampling_params, policy_model, tokenizer, prompt
     
     # Filter using the DataFrame
     true_rows = df[df["reward"] == 1.0]
+    acc = len(true_rows) / len(df)
     false_rows = df[df["reward"] == 0.0]
     
     avg_rsp_len_true = true_rows["length"].mean() if not true_rows.empty else 0.0
     avg_rsp_len_false = false_rows["length"].mean() if not false_rows.empty else 0.0
     return {
         "metadata": df,
+        "acc": acc,
         "loss": loss,
         "avg_rsp_len": avg_rsp_len,
         "avg_rsp_len_true": avg_rsp_len_true,
         "avg_rsp_len_false": avg_rsp_len_false,
         "entropy": avg_response_entropy
+    }
+
+def log_huge_generations(vllm_model, sampling_params, policy_model, tokenizer, prompts, ground_truths, reward_fn, micro_batchsize):
+    total_metrics = {
+    "entropy": [],
+    "acc":[],
+    "loss": [],
+    "avg_rsp_len": [],
+    "avg_rsp_len_true": [],
+    "avg_rsp_len_false": []
+    }
+    for i in range(0, len(prompts)-micro_batchsize, micro_batchsize):
+        infer_prompt = prompts[i : i + micro_batchsize]
+        infer_output = ground_truths[i : i + micro_batchsize]
+        infer_dict = log_generations(
+            vllm_model=vllm_model,
+            sampling_params=sampling_params,
+            policy_model=policy_model,
+            tokenizer=tokenizer,
+            prompts=infer_prompt,
+            ground_truths=infer_output,
+            reward_fn=reward_fn
+        )
+        total_metrics["entropy"].append(infer_dict["entropy"])
+        total_metrics["loss"].append(infer_dict["loss"])
+        total_metrics["acc"].append(infer_dict["acc"])
+        total_metrics["avg_rsp_len"].append(infer_dict["avg_rsp_len"])
+        total_metrics["avg_rsp_len_true"].append(infer_dict["avg_rsp_len_true"])
+        total_metrics["avg_rsp_len_false"].append(infer_dict["avg_rsp_len_false"])
+    eval_loss = sum(total_metrics["loss"]) / len(total_metrics["loss"])
+    eval_acc = sum(total_metrics["acc"]) / len(total_metrics["acc"])
+    eval_entropy = sum(total_metrics["entropy"]) / len(total_metrics["entropy"])
+    eval_rsp_len = sum(total_metrics["avg_rsp_len"]) / len(total_metrics["avg_rsp_len"])
+    eval_rsp_len_true = sum(total_metrics["avg_rsp_len_true"]) / len(total_metrics["avg_rsp_len_true"])
+    eval_rsp_len_false = sum(total_metrics["avg_rsp_len_false"]) / len(total_metrics["avg_rsp_len_false"])
+    return {
+            "eval_loss":eval_loss,
+            "eval_acc":eval_acc,
+            "eval_entropy": eval_entropy,
+            "eval_rsp_len":eval_rsp_len,
+            "eval_rsp_len_true":eval_rsp_len_true,
+            "eval_rsp_len_false":eval_rsp_len_false
     }
 
 

@@ -63,8 +63,8 @@ class NumpySnapshot:
         # Load the snapshot
         expected_arrays = dict(np.load(snapshot_path))
 
-        print("my output:", arrays_dict["loss"])
-        print("ground_truth:", expected_arrays["loss"])
+        # print("my output:", arrays_dict["loss"])
+        # print("ground_truth:", expected_arrays["loss"])
         # Verify all expected arrays are present
         missing_keys = set(arrays_dict.keys()) - set(expected_arrays.keys())
         if missing_keys:

@@ -7,17 +7,16 @@ from unittest.mock import patch
 
 
 
-def statistics(df_path):
-    df = pd.read_parquet(df_path)
-    groups = df.groupby(['format_reward', 'answer_reward'])
-    split_groups = {name: group for name, group in groups}
-
-    reward0_0, reward1_0, reward1_1 = split_groups[(0.0,0.0)], split_groups[(1.0,0.0)], split_groups[(1.0,1.0)]
-    reward0_1 = split_groups.get((0.0,1.0), pd.DataFrame())
-    stats = {"total cases":len(df), "only_format_right_rate":len(reward1_0)/len(df),
+def statistics(df):
+    # df = pd.read_parquet(df_path)
+    reward0_0 = df[(df["format_reward"]==0.0) & (df["answer_reward"]==0.0)]
+    reward1_0 = df[(df["format_reward"]==1.0) & (df["answer_reward"]==0.0)]
+    reward1_1 = df[(df["format_reward"]==1.0) & (df["answer_reward"]==1.0)]
+    # reward0_0 = df[(df["forwat_reward"]==0.0) & (df["answer_reward"]==1.0)]
+    stats = {"total_cases":len(df), "only_format_right_rate":len(reward1_0)/len(df),
              "both_right_rate":len(reward1_1)/len(df),\
                 "both_wrong_rate":len(reward0_0)/len(df)}
-    print(stats)
+    return stats
 
 def preprocess_data(data_path, outpath):
     df = pd.read_parquet(data_path)
@@ -43,7 +42,7 @@ def init_vllm(model_id: str, device: str, seed: int, gpu_memory_utilization: flo
 
 def load_policy_into_vllm_instance(policy, llm):
     state_dict = policy.state_dict()
-    llm_model = llm.llm_engine.model_executor.drive_worker.model_runner.model
+    llm_model = llm.llm_engine.model_executor.driver_worker.model_runner.model
     llm_model.load_weights(state_dict.items())
 
 def tokenize_prompt_and_output(prompt_strs: list[str], \
@@ -74,9 +73,13 @@ def tokenize_prompt_and_output(prompt_strs: list[str], \
             "response_mask": mask_tensor}
 
 class SFTDataset(Dataset):
-    def __init__(self, data_path):
+    def __init__(self, data_path, unique_samples=0):
         super().__init__()
-        self.df = pd.read_parquet(data_path)
+        df = pd.read_parquet(data_path)
+        if unique_samples == 0:
+            self.df = df
+        else:
+            self.df = df.sample(n=unique_samples)
     def __getitem__(self, idx):
         return self.df.iloc[idx].to_dict()
     # return a dict like {"prompt":..., "output":...}
@@ -93,3 +96,8 @@ if __name__ == "__main__":
     data_path = "/root/shared-nvme/gsm8k/main/test-00000-of-00001.parquet"
     outpath = "/root/shared-nvme/gsm8k/main/text-preprocessed.parquet"
     preprocess_data(data_path, outpath)
+
+    df1 = pd.read_parquet("/root/shared-nvme/gsm8k/main/test-prompt_and_output.parquet")
+    df2 = pd.read_parquet("/root/shared-nvme/gsm8k/main/test-preprocessed.parquet")
+    df = pd.DataFrame({"prompt": df1["prompt"], "answer": df2["answer"]})
+    df.to_parquet("/root/shared-nvme/gsm8k/main/test-prompt_and_answer.parquet")
